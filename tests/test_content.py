@@ -9,29 +9,34 @@ User = get_user_model()
 
 class TestNotesPage(TestCase):
     PAGE_URL = reverse('notes:list')
-    COUNT_NOTES = 10
+    COUNT_NOTES = 1
 
     @classmethod
     def setUpTestData(cls):
         cls.author = User.objects.create(username='Alex')
         cls.reader = User.objects.create(username='Michael')
 
-        users = (cls.author, cls.reader)
-        all_notes = []
-        for user in users:
-            for index in range(cls.COUNT_NOTES):
-                note = Note(
-                    title=f'Заметка {user} {index}',
-                    slug=f'note_{user}_{index}',
-                    text='Просто текст.',
-                    author=user,
-                )
-                all_notes.append(note)
-        Note.objects.bulk_create(all_notes)
+        cls.note = Note.objects.create(
+             title='Заметка',
+             slug='note',
+             text='Просто текст.',
+             author=cls.author,
+        )
 
-    def test_notes_count(self):
-        self.client.force_login(self.author)
+    def test_notes_list_for_different_users(self):
+        self.client.force_login(self.reader)
         response = self.client.get(self.PAGE_URL)
         object_list = response.context['object_list']
-        notes_count = len(object_list)
-        self.assertEqual(notes_count, self.COUNT_NOTES)
+        self.assertNotIn(self.note, object_list)
+
+    def test_authorized_client_has_form(self):
+        urls = (
+            ('notes:add', None),
+            ('notes:edit', (self.note.slug,))
+        )
+        for name, args in urls:
+            with self.subTest(name=name):
+                self.client.force_login(self.author)
+                url = reverse(name, args=args)
+                response = self.client.get(url)
+                self.assertIn('form', response.context)
